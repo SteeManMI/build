@@ -1,5 +1,5 @@
 # Armbox - Armbian for Amlogic S905x SoCs
-BOARD_NAME="Armbox AML"
+BOARD_NAME="Armbox"
 BOARDFAMILY="armbox"
 BOOTCONFIG="libretech-cc_defconfig"
 KERNEL_TARGET="current,edge"
