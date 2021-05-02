@@ -2,7 +2,7 @@
 BOARD_NAME="Armbox"
 BOARDFAMILY="armbox"
 BOOTCONFIG="libretech-cc_defconfig"
-KERNEL_TARGET="current,edge"
+KERNEL_TARGET="lts20,lts21,current,edge"
 SERIALCON="ttyAML0"
 FULL_DESKTOP="yes"
 ASOUND_STATE="asound.state.mesongx"
