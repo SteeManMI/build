@@ -104,6 +104,7 @@ create_rootfs_cache()
 		else
 		local cycles=2
 	fi
+
 	# seek last cache, proceed to previous otherwise build it
 	for ((n=0;n<${cycles};n++)); do
 
@@ -118,24 +119,22 @@ create_rootfs_cache()
 		local cache_fname=${SRC}/cache/rootfs/${cache_name}
 		local display_name=${RELEASE}-${cache_type}-${ARCH}.${packages_hash:0:3}...${packages_hash:29}.tar.lz4
 
-		display_alert "Checking for local cache" "$display_name" "info"
-
-		if [[ ! -f $cache_fname && "$ROOT_FS_CREATE_ONLY" != "force" ]]; then
-			display_alert "searching on servers"
-			download_and_verify "_rootfs" "$cache_name"
-		fi
-
-		if [[ -f $cache_fname && -f $cache_fname.aria2 && $USE_TORRENT="no" && -z "$ROOT_FS_CREATE_ONLY" ]]; then
+		if [[ -f $cache_fname && -f $cache_fname.aria2 ]]; then
 			rm ${cache_fname}*
 			download_and_verify "_rootfs" "$cache_name"
 		fi
 
-		if [[ -f $cache_fname.aria2 && -z "$ROOT_FS_CREATE_ONLY" ]]; then
-			display_alert "resuming"
+		display_alert "Checking for local cache" "$display_name" "info"
+		if [[ -f $cache_fname && -n "$ROOT_FS_CREATE_ONLY" ]]; then
+			touch $cache_fname.current
+			break
+		else
+			display_alert "searching on servers"
 			download_and_verify "_rootfs" "$cache_name"
 		fi
 
 		if [[ -f $cache_fname ]]; then
+			touch $cache_fname.current
 			break
 		else
 			display_alert "not found: try to use previous cache"
@@ -144,6 +143,17 @@ create_rootfs_cache()
 	done
 
 	if [[ -f $cache_fname && ! -f $cache_fname.aria2 && "$ROOT_FS_CREATE_ONLY" != "force" ]]; then
+
+		# speed up checking
+		if [[ -n "$ROOT_FS_CREATE_ONLY" ]]; then
+			touch $cache_fname.current
+			[[ $use_tmpfs = yes ]] && umount $SDCARD
+			rm -rf $SDCARD
+			# remove exit trap
+			trap - INT TERM EXIT
+			exit
+		fi
+
 		local date_diff=$(( ($(date +%s) - $(stat -c %Y $cache_fname)) / 86400 ))
 		display_alert "Extracting $display_name" "$date_diff days old" "info"
 		pv -p -b -r -c -N "[ .... ] $display_name" "$cache_fname" | lz4 -dc | tar xp --xattrs -C $SDCARD/
@@ -347,6 +357,9 @@ create_rootfs_cache()
 			echo $GPG_PASS | gpg --passphrase-fd 0 --armor --detach-sign --pinentry-mode loopback --batch --yes $cache_fname
 		fi
 
+		# needed for backend to keep current only
+		touch $cache_fname.current
+
 	fi
 
 	# used for internal purposes. Faster rootfs cache rebuilding
@@ -394,9 +407,9 @@ prepare_partitions()
 	# add -N number of inodes to keep mount from running out
 	# create bigger number for desktop builds
 	if [[ $BUILD_DESKTOP == yes ]]; then local node_number=4096; else local node_number=1024; fi
-	if [[ $(lsb_release -sc) =~ bionic|buster|bullseye|cosmic|groovy|focal|hirsute|sid ]]; then
+	if [[ $HOSTRELEASE =~ bionic|buster|bullseye|cosmic|groovy|focal|hirsute|sid ]]; then
 		mkopts[ext4]="-q -m 2 -O ^64bit,^metadata_csum -N $((128*${node_number}))"
-	elif [[ $(lsb_release -sc) == xenial ]]; then
+	elif [[ $HOSTRELEASE == xenial ]]; then
 		mkopts[ext4]="-q -m 2 -N $((128*${node_number}))"
 	fi
 	mkopts[fat]='-n BOOT'
